@@ -133,18 +133,33 @@ async def predict(file: UploadFile = File(...)):
         output = session.run([output_name], {input_name: img_array})
         
         # Processa output
-        logits = output[0][0]  # Shape: (2,) para 2 classes
+        logits = output[0][0]  # Shape: (n_classes,)
         # Softmax estável numericamente
         exps = np.exp(logits - np.max(logits))
         probs = exps / np.sum(exps)
-        confidence = float(np.max(probs))
-        pred_class = int(np.argmax(logits))
-        pred_label = CLASS_NAMES.get(pred_class, "unknown")
-        
+        # garantir que escolhemos o índice da maior probabilidade
+        pred_index = int(np.argmax(probs))
+        # confidence da classe predita
+        confidence = float(probs[pred_index])
+
+        # Mapeamento seguro: se o índice não existir em CLASS_NAMES, forçar entre 0 e 1
+        if pred_index not in CLASS_NAMES:
+            logger.warning(f"Índice de classe inesperado: {pred_index}. Forçando mapa entre 0/1.")
+            # se houver pelo menos 2 classes, escolher entre as duas primeiras
+            if probs.shape[0] >= 2:
+                pred_index = 0 if float(probs[0]) >= float(probs[1]) else 1
+            else:
+                pred_index = 0
+
+        pred_label = CLASS_NAMES.get(pred_index, "normal")
+
+        # Log para depuração: logits e probs
+        logger.info(f"logits={logits.tolist() if hasattr(logits, 'tolist') else str(logits)} probs={probs.tolist()}")
+
         return JSONResponse({
             "prediction": pred_label,
             "confidence": round(confidence, 4),
-            "class_index": pred_class,
+            "class_index": pred_index,
             "message": f"Análise concluída com confiança de {confidence*100:.1f}%"
         })
     
@@ -206,15 +221,22 @@ async def predict_base64(request: Request):
         logits = output[0][0]
         exps = np.exp(logits - np.max(logits))
         probs = exps / np.sum(exps)
-        confidence = float(np.max(probs))
-        pred_class = int(np.argmax(logits))
-        pred_label = CLASS_NAMES.get(pred_class, "unknown")
-        
-        logger.info(f"Predição: {pred_label} (confiança: {confidence:.4f})")
+        pred_index = int(np.argmax(probs))
+        confidence = float(probs[pred_index])
+
+        if pred_index not in CLASS_NAMES:
+            logger.warning(f"predict-base64: índice inesperado {pred_index}, ajustando para 0/1")
+            if probs.shape[0] >= 2:
+                pred_index = 0 if float(probs[0]) >= float(probs[1]) else 1
+            else:
+                pred_index = 0
+
+        pred_label = CLASS_NAMES.get(pred_index, "normal")
+        logger.info(f"Predição: {pred_label} (confiança: {confidence:.4f}) logits={logits.tolist() if hasattr(logits, 'tolist') else str(logits)} probs={probs.tolist()}")
         return JSONResponse({
             "prediction": pred_label,
             "confidence": round(confidence, 4),
-            "class_index": pred_class,
+            "class_index": pred_index,
             "message": f"Análise concluída: {pred_label}"
         })
     
