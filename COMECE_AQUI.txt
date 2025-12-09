@@ -1,0 +1,101 @@
+COMECE AQUI
+===========
+
+# PLANO A: Online (Mais Fácil)
+
+1. Vá a https://render.com
+2. Crie um Web Service novo
+3. Use repositório: eyessistant2
+4. Build Command: pip install -r backend/requirements.txt
+5. Start Command: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+6. Deploy!
+7. Após 3-5 min, pegue a URL (ex: https://eyessistant-backend-xxx.onrender.com)
+8. Edite services/catarata-api.ts e coloque a URL do backend
+9. Acesse: https://marleson5019.github.io/eyessistant2/analise
+
+---
+
+# PLANO B: Seu PC (Backup)
+
+## Passo 1: Setup (uma única vez)
+```
+cd C:\Users\marly\OneDrive\Desktop\Eyessistant
+powershell -ExecutionPolicy Bypass -File setup-local.ps1
+```
+Vai baixar ngrok automaticamente.
+
+## Passo 2: Rodar (abrir 3 janelas de comando/PowerShell)
+
+### Janela 1:
+```
+cd C:\Users\marly\OneDrive\Desktop\Eyessistant
+.\start-backend.bat
+```
+
+### Janela 2:
+```
+cd C:\Users\marly\OneDrive\Desktop\Eyessistant
+.\expose-ngrok.bat
+```
+Vai aparecer algo como:
+```
+Forwarding: https://abc123.ngrok.io -> http://localhost:8000
+```
+Copie `https://abc123.ngrok.io`
+
+### Janela 3:
+```
+cd C:\Users\marly\OneDrive\Desktop\Eyessistant
+.\start-frontend.bat
+```
+
+## Passo 3: Configurar URL
+
+Abra `services/catarata-api.ts` e mude:
+
+```typescript
+// Trocar isto:
+const API_BASE_URL = 'https://eyessistant-backend.onrender.com';
+
+// Por isto (copie do ngrok):
+const API_BASE_URL = 'https://abc123.ngrok.io';
+```
+
+Salve e o frontend vai recarregar automaticamente.
+
+## Passo 4: Testar
+
+Abra no navegador: http://localhost:19006
+
+Vá para "Análise" e teste com uma imagem.
+
+---
+
+# Acessar de OUTRO DISPOSITIVO
+
+## Mesmo WiFi:
+http://192.168.1.107:19006
+
+## Internet (fora da rede):
+Abra outra janela e execute:
+```
+"%USERPROFILE%\ngrok.exe" http 19006
+```
+
+Depois acesse a URL que aparecer.
+
+---
+
+# Problemas?
+
+### "Asset 404"
+- Ctrl+Shift+Delete (limpar cache)
+- F5 (recarregar)
+
+### "Conexão recusada no backend"
+- Verificar se ngrok está rodando
+- Verificar se URL está correta em catarata-api.ts
+
+### "Erro ao subir imagem"
+- Testar com imagem pequena (< 2MB)
+- Verificar console (F12) para ver erro exato
