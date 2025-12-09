@@ -11,7 +11,7 @@ import { Platform } from 'react-native';
 
 const API_BASE_URL =
   (process.env && process.env.EXPO_PUBLIC_API_URL) ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
+  'https://eyessistant-backend.onrender.com';
 
 export interface PredictionResult {
   prediction: 'normal' | 'catarata';
