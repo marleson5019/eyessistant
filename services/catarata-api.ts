@@ -10,12 +10,14 @@ import { Platform } from 'react-native';
  */
 
 // Use EXPO_PUBLIC_API_URL when definido (dev), senão usa o backend online publicado
+// Base URL da API
+// Prioriza EXPO_PUBLIC_API_URL; em Android emulador usa 10.0.2.2; fallback remoto
 const API_BASE_URL =
   (process.env && process.env.EXPO_PUBLIC_API_URL) ||
-  'https://eyessistant2-backend.onrender.com';
+  (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
 
 export interface PredictionResult {
-  prediction: 'normal' | 'catarata';
+  prediction: 'normal' | 'catarata' | 'imature' | 'mature';
   confidence: number;
   class_index: number;
   message: string;
@@ -25,6 +27,8 @@ export interface ApiError {
   status: number;
   detail: string;
 }
+
+// Upload para Drive removido por enquanto
 
 /**
  * Converte arquivo local (URI) para base64
@@ -117,6 +121,11 @@ export async function predictFromBase64(imageUri: string): Promise<PredictionRes
     throw error;
   }
 }
+
+/**
+ * Faz upload da imagem para a pasta do Google Drive via backend
+ */
+// export async function uploadImageToDrive(...) { /* desativado */ }
 
 /**
  * Verifica se a API está disponível (health check)

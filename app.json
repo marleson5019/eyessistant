@@ -1,11 +1,11 @@
 {
   "expo": {
-  "name": "Eyessistant",
-  "slug": "eyessistant",
+    "name": "Eyessistant",
+    "slug": "eyessistant",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-  "scheme": "eyessistant",
+    "scheme": "eyessistant",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.marlyson5019.eyessistant"
     },
     "web": {
       "bundler": "metro",
@@ -38,6 +39,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1e764f9e-f20a-4878-9af8-19e72b4ec5ea"
+      }
     }
   }
 }

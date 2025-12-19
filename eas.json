@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/expo/eas-cli/main/eas-json-schema/schema.json",
+  "cli": {
+    "version": ">= 6.0.0"
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://192.168.0.100:8000"
+      }
+    }
+  }
+}

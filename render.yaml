@@ -1,0 +1,15 @@
+# Render blueprint para publicar o backend FastAPI
+# Uso: no painel do Render, importe este repositório; ele cria um serviço web Python.
+
+services:
+  - type: web
+    name: eyessistant-backend
+    rootDir: backend
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "uvicorn main:app --host 0.0.0.0 --port 10000"
+    envVars:
+      - key: PORT
+        value: 10000
+    autoDeploy: true

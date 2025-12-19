@@ -1,4 +1,6 @@
+import * as NavigationBar from 'expo-navigation-bar';
 import { Tabs } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 
@@ -12,10 +14,7 @@ import { IdiomaProvider } from '../components/IdiomaContext';
 import { TemaProvider } from '../components/TemaContext';
 import { TemaWrapper } from '../components/TemaWrapper';
 
-import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function Layout() {
@@ -40,6 +39,15 @@ export default function Layout() {
     }
     return;
   }, []);
+
+  // Android: ocultar barra de navegação (fullscreen imersivo)
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setVisibilityAsync('hidden').catch(() => {});
+      NavigationBar.setBehaviorAsync('overlay-swipe').catch(() => {});
+    }
+  }, []);
+
   return (
     <TemaProvider>
       <DaltonicoProvider>
@@ -50,20 +58,18 @@ export default function Layout() {
                 <TemaWrapper>
                   <GrayscaleWrapper>
                     <ContrasteWrapper>
+                      <StatusBar hidden />
                       <Tabs
                         screenOptions={{
-                          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+                          tabBarStyle: { display: 'none' },
+                          tabBarButton: () => null,
+                          tabBarShowLabel: false,
                           headerShown: false,
-                          tabBarButton: HapticTab,
-                          tabBarBackground: TabBarBackground,
-                          tabBarStyle: Platform.select({
-                            ios: { position: 'absolute' },
-                            default: {},
-                          }),
                         }}>
                         <Tabs.Screen
                           name="index"
                           options={{
+                            href: null,
                             title: 'Início',
                             tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />, 
                           }}
@@ -71,6 +77,7 @@ export default function Layout() {
                         <Tabs.Screen
                           name="analise"
                           options={{
+                            href: null,
                             title: 'Análise',
                             tabBarIcon: ({ color }) => <IconSymbol size={28} name="camera.fill" color={color} />, 
                           }}

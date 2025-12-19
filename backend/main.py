@@ -12,6 +12,15 @@ from fastapi.responses import JSONResponse
 from PIL import Image
 import io
 import json
+from typing import Optional
+
+# Google Drive
+try:
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+except Exception:
+    service_account = None
+    build = None
 
 # Inicializa FastAPI
 app = FastAPI(
@@ -31,7 +40,7 @@ app.add_middleware(
 
 # Mapear índices para classes
 CLASS_NAMES = {
-    0: "normal",
+    from fastapi import FastAPI, UploadFile, File, HTTPException, Request
     1: "catarata"
 }
 
@@ -55,56 +64,60 @@ logger.addHandler(logging.StreamHandler())
 session = None
 try:
     if ort is None:
-        raise RuntimeError("onnxruntime não disponível")
-    session = ort.InferenceSession(MODEL_PATH)
-    logger.info(f"[OK] Modelo carregado com sucesso de: {MODEL_PATH}")
-except Exception as e:
-    logger.exception(f"[ERRO] Erro ao carregar modelo: {e}")
+    # Mapear índices para classes (novo modelo)
+    CLASS_NAMES = {
+        0: "imature",
+        1: "mature",
+        2: "normal",
+    }
     session = None
 
+# Config Drive
+GOOGLE_DRIVE_FOLDER_ID = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "1xP89zBKl8AFXTOpGBNroCiBacUMR4HeA")
+GOOGLE_CREDENTIALS_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "credentials", "service_account.json")
 
-@app.get("/")
-def root():
-    """Endpoint raiz para verificar se API está ativa"""
-    return {
-        "status": "online",
-        "message": "Eyessistant API está rodando",
-        "model_loaded": session is not None
-    }
+def get_drive_service() -> Optional[object]:
+    """Inicializa cliente do Google Drive usando Service Account.
 
-
-@app.get("/health")
-def health_check():
-    """Health check para monitoramento"""
-    return {
-        "status": "healthy" if session is not None else "unhealthy",
-        "model": "catarata_detection"
-    }
-
-
-@app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+    Requer variáveis/arquivo:
+      - GOOGLE_APPLICATION_CREDENTIALS (opcional): caminho para JSON
+      - ou backend/credentials/service_account.json
     """
-    Realiza predição de catarata em uma imagem.
-    
-    Args:
-        file: Arquivo de imagem (jpg, png, etc.)
-    
-    Returns:
-        {
-            "prediction": "normal" | "catarata",
-            "confidence": float (0-1),
-            "class_index": int,
-            "message": str
-        }
+    try:
+        if service_account is None or build is None:
+            logger.warning("Drive API não disponível (pacotes ausentes)")
+            return None
+
+        creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", GOOGLE_CREDENTIALS_PATH_DEFAULT)
+        if not os.path.isfile(creds_path):
+            logger.error(f"Credenciais do Google não encontradas em: {creds_path}")
+            return None
+
+        scopes = ["https://www.googleapis.com/auth/drive.file"]
+        creds = service_account.Credentials.from_service_account_file(creds_path, scopes=scopes)
+        service = build("drive", "v3", credentials=creds)
+        return service
+    except Exception as e:
+      {
+        "image": "base64_string",
+        "filename": "opcional_nome.jpg"
+      }
+    Retorno:
+      { "fileId": "...", "webViewLink": "..." }
     """
+    try:
+        body = await request.json()
+        image_b64 = body.get("image")
+        filename = body.get("filename") or f"eyessistant_{int(np.random.randint(1_000_000))}.jpg"
+
+        if not image_b64:
+            raise HTTPException(status_code=400, detail="Campo 'image' (base64) é obrigatório")
+
+        import base64
+        image_bytes = base64.b64decode(image_b64)
+
+        # valida imagem
     
-    if session is None:
-        # fallback: responde com resultado padrão (não bloqueia a API)
-        logger.warning("predict: modelo não carregado, retornando fallback 'normal' com baixa confiança")
-        return JSONResponse({
-            "prediction": "normal",
-            "confidence": 0.5,
             "class_index": 0,
             "message": "Modelo não disponível — resultado de fallback"
         })
