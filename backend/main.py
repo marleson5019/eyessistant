@@ -252,7 +252,6 @@ async def predict_base64(request: Request):
             "class_index": pred_index,
             "message": f"Análise concluída: {pred_label}"
         })
-    
 
     except Exception as e:
         logger.exception("Erro no /predict-base64")
