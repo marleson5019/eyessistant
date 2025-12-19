@@ -37,7 +37,11 @@ CLASS_NAMES = {
 }
 
 # Carrega o modelo ONNX
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "models", "catarata.onnx")
+# __file__ aponta para backend/main.py, models está em backend/models
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "catarata.onnx")
+if not os.path.isfile(MODEL_PATH):
+    # Fallback: checar diretório de trabalho (Render rootDir=backend)
+    MODEL_PATH = os.path.join(os.getcwd(), "models", "catarata.onnx")
 
 # Garantir diretório de logs
 LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
