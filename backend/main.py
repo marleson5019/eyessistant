@@ -38,10 +38,23 @@ CLASS_NAMES = {
 
 # Carrega o modelo ONNX
 # __file__ aponta para backend/main.py, models está em backend/models
+import urllib.request
+
 MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "catarata.onnx")
 if not os.path.isfile(MODEL_PATH):
     # Fallback: checar diretório de trabalho (Render rootDir=backend)
     MODEL_PATH = os.path.join(os.getcwd(), "models", "catarata.onnx")
+
+# Se não encontrar, tenta baixar (fallback para URL pública)
+FALLBACK_MODEL_URL = os.environ.get("CATARATA_MODEL_URL", "")  # usuário pode fornecer URL
+if not os.path.isfile(MODEL_PATH) and FALLBACK_MODEL_URL:
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+    logger.info(f"Baixando modelo de {FALLBACK_MODEL_URL}...")
+    try:
+        urllib.request.urlretrieve(FALLBACK_MODEL_URL, MODEL_PATH)
+        logger.info(f"Modelo baixado com sucesso: {MODEL_PATH}")
+    except Exception as e:
+        logger.warning(f"Falha ao baixar modelo: {e}")
 
 # Garantir diretório de logs
 LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
