@@ -538,6 +538,9 @@ export default function AnaliseScreen() {
 
     try {
       console.log('📸 Iniciando análise de imagem...');
+      console.log('🌐 API URL:', process.env.EXPO_PUBLIC_API_URL || 'fallback');
+      console.log('📱 Platform:', Platform.OS);
+      
       const result = await predictWithRetry(uri, 3);
       console.log('✅ Resultado recebido:', result);
       setPredictionResult(result);
@@ -555,7 +558,7 @@ export default function AnaliseScreen() {
       setProcessing(false);
       
       const errorMsg = error instanceof Error ? error.message : 'Erro ao processar imagem';
-      setPredictionError(errorMsg);
+      setPredictionError(`${errorMsg}\n\nURL: ${process.env.EXPO_PUBLIC_API_URL || 'fallback'}\nPlatform: ${Platform.OS}`);
       console.error('❌ Erro armazenado no state:', errorMsg);
       
       Alert.alert(
