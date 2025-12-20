@@ -25,7 +25,7 @@
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ],
-      "usesCleartextTraffic": true
+      
     },
     "web": {
       "bundler": "metro",
