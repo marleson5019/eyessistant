@@ -94,12 +94,14 @@ async function imageUriToBase64Web(imageUri: string): Promise<string> {
  */
 export async function predictFromBase64(imageUri: string): Promise<PredictionResult> {
   try {
+    console.log(`🔍 API URL: ${API_BASE_URL}`);
     const base64Image = await imageUriToBase64(imageUri);
 
     const response = await fetch(`${API_BASE_URL}/predict-base64`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
         image: base64Image,
@@ -107,17 +109,23 @@ export async function predictFromBase64(imageUri: string): Promise<PredictionRes
     });
 
     if (!response.ok) {
-      const error = await response.json();
+      let errorDetail = 'Erro desconhecido na API';
+      try {
+        const error = await response.json();
+        errorDetail = error.detail || errorDetail;
+      } catch (e) {
+        errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+      }
       throw {
         status: response.status,
-        detail: error.detail || 'Erro desconhecido na API',
+        detail: errorDetail,
       } as ApiError;
     }
 
     const result: PredictionResult = await response.json();
     return result;
   } catch (error) {
-    console.error('Erro na predição:', error);
+    console.error('❌ Erro na predição:', error);
     throw error;
   }
 }
