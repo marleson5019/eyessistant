@@ -5,6 +5,7 @@ import { Animated, Easing, Platform, SafeAreaView, ScrollView, StyleSheet, Text,
 import { useFontSize } from "../components/FontSizeContext";
 import { useIdioma } from "../components/IdiomaContext";
 import { useCores } from "../components/TemaContext";
+import { fetchStats, StatsSummary } from "../services/catarata-api";
 
 const navbarStyles = StyleSheet.create({
   navbarWrapper: {
@@ -119,16 +120,45 @@ function DadosScreen() {
   const { fontScale } = useFontSize();
   const cores = useCores();
   const { t } = useIdioma();
+  const [stats, setStats] = useState<StatsSummary | null>(null);
+  const [statsLoading, setStatsLoading] = useState<boolean>(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const mesesKeys = ['jan','fev','mar','abr','mai','jun','jul','ago','set'];
   const meses = mesesKeys.map(k => t(k));
-  const analisesPorMes = [0, 1, 2, 2, 5, 4, 3, 2, 1];
-  const positivos = 5;
-  const totalAnalises = analisesPorMes.reduce((a, b) => a + b, 0);
-  const negativos = 15;
+
+  const analisesPorMes = React.useMemo(() => {
+    const base = mesesKeys.map(() => 0);
+    if (!stats) return base;
+    const byMonth = [...stats.by_month].slice(-mesesKeys.length);
+    byMonth.forEach((item, idx) => {
+      const targetIndex = mesesKeys.length - byMonth.length + idx;
+      if (targetIndex >= 0 && targetIndex < base.length) {
+        base[targetIndex] = item.count;
+      }
+    });
+    return base;
+  }, [stats, mesesKeys]);
+
+  const positivos = stats ? (stats.imature + stats.mature) : 0;
+  const totalAnalises = stats ? stats.total : analisesPorMes.reduce((a, b) => a + b, 0);
+  const negativos = stats ? stats.normal : 0;
 
   // Animations
   const barAnim = useRef(analisesPorMes.map(() => new Animated.Value(0))).current;
   const pieAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    setStatsLoading(true);
+    fetchStats()
+      .then((result) => {
+        setStats(result);
+        setStatsError(null);
+      })
+      .catch((err) => {
+        setStatsError(`Erro ao carregar estatísticas: ${err}`);
+      })
+      .finally(() => setStatsLoading(false));
+  }, []);
+
   useEffect(() => {
     // Animate bars
     Animated.stagger(80, barAnim.map((anim, i) =>
@@ -146,7 +176,7 @@ function DadosScreen() {
       useNativeDriver: false,
       easing: Easing.out(Easing.exp),
     }).start();
-  }, []);
+  }, [analisesPorMes]);
 
   // Card press animation
   const [pressedCard, setPressedCard] = useState(-1);
@@ -170,6 +200,12 @@ function DadosScreen() {
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 100, paddingBottom: 210 }}>
   <Text style={[styles.dashTitle, { fontSize: 18 * fontScale, color: cores.primary }]}>{t('dados_titulo')}</Text>
+            {statsLoading && (
+              <Text style={{ textAlign: 'center', color: cores.textSecundario, marginBottom: 12 }}>{t('carregando') || 'Carregando...'}</Text>
+            )}
+            {statsError && (
+              <Text style={{ textAlign: 'center', color: 'red', marginBottom: 12 }}>{statsError}</Text>
+            )}
         {/* CARDS RESUMO */}
         <View style={styles.cardsRowWrap}>
           {[{

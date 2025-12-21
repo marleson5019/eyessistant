@@ -13,6 +13,9 @@ pnpm-debug.log*
 .DS_Store
 .env
 .env.*
+backend/.env
+backend/*.db
+backend/*.db-*
 .vscode/
 .idea/
 .gradle/

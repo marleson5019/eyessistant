@@ -1,7 +1,8 @@
 import { Inter_400Regular, Inter_700Bold, useFonts } from "@expo-google-fonts/inter";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
     Dimensions,
     StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { useFontSize } from "../components/FontSizeContext";
 import { useIdioma } from "../components/IdiomaContext";
 import { useCores } from "../components/TemaContext";
+import { loginUser } from "../services/catarata-api";
 
 const { width } = Dimensions.get("window");
 
@@ -25,6 +27,8 @@ export default function Login() {
   const [senha, setSenha] = useState("");
   const [emailError, setEmailError] = useState("");
   const [senhaError, setSenhaError] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_700Bold,
@@ -44,6 +48,26 @@ export default function Login() {
     setSenha(val);
     if (val && val.length < 6) setSenhaError(t('senha_fraca'));
     else setSenhaError("");
+  }
+
+  async function handleLogin() {
+    setSubmitError(null);
+    if (!email || !senha || emailError || senhaError) {
+      setSubmitError(t('alert_preencha_campos') || 'Preencha os campos corretamente');
+      return;
+    }
+    try {
+      setLoading(true);
+      const user = await loginUser(email, senha);
+      if (user.token) {
+        await AsyncStorage.setItem('eyessistant_token', user.token);
+      }
+      router.replace("/inicio");
+    } catch (err: any) {
+      setSubmitError(err?.detail || err?.message || 'Falha no login');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (!fontsLoaded) return null;
@@ -103,10 +127,14 @@ export default function Login() {
         ) : null}
         <TouchableOpacity
           style={[styles.loginBtn, { backgroundColor: cores.primary }]}
-          onPress={() => router.replace("/inicio")}
+          onPress={handleLogin}
+          disabled={loading}
         >
-                      <Text style={[styles.loginBtnText, { fontSize: 16 * fontScale }]}>{t('login_entrar')}</Text>
+          <Text style={[styles.loginBtnText, { fontSize: 16 * fontScale }]}>{loading ? t('carregando') || 'Entrando...' : t('login_entrar')}</Text>
         </TouchableOpacity>
+        {submitError ? (
+          <Text style={[styles.errorText, { marginTop: 8, fontSize: 13 * fontScale }]}>{submitError}</Text>
+        ) : null}
         <TouchableOpacity>
                       <Text style={[styles.link, { fontSize: 14 * fontScale, color: cores.primary }]}>{t('login_esqueci_senha')}</Text>
         </TouchableOpacity>

@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import { useRouter } from "expo-router";
 import * as Sharing from 'expo-sharing';
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Animated, Image, Platform, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useFontSize } from "../components/FontSizeContext";
 import { useIdioma } from "../components/IdiomaContext";

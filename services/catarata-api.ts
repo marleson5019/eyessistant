@@ -14,13 +14,28 @@ import { Platform } from 'react-native';
 // Prioriza EXPO_PUBLIC_API_URL; em Android emulador usa 10.0.2.2; fallback remoto
 const API_BASE_URL =
   (process.env && process.env.EXPO_PUBLIC_API_URL) ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
+  'https://eyessistant-backend.onrender.com';
 
 export interface PredictionResult {
   prediction: 'normal' | 'catarata' | 'imature' | 'mature';
   confidence: number;
   class_index: number;
   message: string;
+}
+
+export interface StatsSummary {
+  total: number;
+  normal: number;
+  imature: number;
+  mature: number;
+  by_month: { month: string; count: number }[];
+}
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  token?: string;
+  created_at: string;
 }
 
 export interface ApiError {
@@ -148,6 +163,54 @@ export async function checkApiHealth(): Promise<boolean> {
     console.warn('API indisponível:', error);
     return false;
   }
+}
+
+export async function fetchStats(token?: string): Promise<StatsSummary> {
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE_URL}/stats/summary`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao buscar estatísticas: HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function registerUser(email: string, password: string): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Falha no cadastro (HTTP ${response.status})`);
+  }
+  return response.json();
+}
+
+export async function loginUser(email: string, password: string): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Falha no login (HTTP ${response.status})`);
+  }
+  return response.json();
 }
 
 /**

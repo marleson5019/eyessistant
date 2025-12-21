@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import { useState } from "react";
 import {
     Alert,
     KeyboardAvoidingView,
@@ -18,6 +19,7 @@ import { useCadastroForm } from "../components/CadastroFormContext";
 import { useFontSize } from "../components/FontSizeContext";
 import { useIdioma } from "../components/IdiomaContext";
 import { useCores } from "../components/TemaContext";
+import { registerUser } from "../services/catarata-api";
 
 export default function Cadastro() {
   const router = useRouter();
@@ -44,6 +46,8 @@ export default function Cadastro() {
   const [telefoneError, setTelefoneError] = useState("");
   const [senhaError, setSenhaError] = useState("");
   const [confirmarSenhaError, setConfirmarSenhaError] = useState("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Handlers simples para validação básica
   function handleEmailChange(text: string) {
@@ -99,17 +103,29 @@ export default function Cadastro() {
     setConfirmarSenhaError("");
     setStep(1);
   }
-  function handleCadastrar() {
+  async function handleCadastrar() {
     if (!senha || !confirmarSenha || senhaError || confirmarSenhaError || !aceito) {
       Alert.alert(t('alert_preencha_aceite'));
       return;
     }
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      limparCampos();
-      router.replace("/login");
-    }, 1500);
+    setSubmitError(null);
+    try {
+      setLoading(true);
+      const user = await registerUser(email, senha);
+      if (user.token) {
+        await AsyncStorage.setItem('eyessistant_token', user.token);
+      }
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        limparCampos();
+        router.replace("/inicio");
+      }, 1200);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Falha no cadastro');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -280,11 +296,16 @@ export default function Cadastro() {
                       : {},
                   ]}
                   onPress={handleCadastrar}
-                  disabled={!(senha && confirmarSenha && aceito && !senhaError && !confirmarSenhaError)}
+                  disabled={loading || !(senha && confirmarSenha && aceito && !senhaError && !confirmarSenhaError)}
                 >
-                  <Text style={[styles.cadastrarBtnText, { fontSize: 16 * fontScale }]}>{t('cadastro_cadastrar')}</Text>
+                  <Text style={[styles.cadastrarBtnText, { fontSize: 16 * fontScale }]}>
+                    {loading ? t('carregando') || 'Cadastrando...' : t('cadastro_cadastrar')}
+                  </Text>
                 </TouchableOpacity>
               </View>
+              {submitError ? (
+                <Text style={[styles.errorText, { marginTop: 8, fontSize: 13 * fontScale }]}>{submitError}</Text>
+              ) : null}
             </View>
           ) : null}
         </View>

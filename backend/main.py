@@ -1,5 +1,7 @@
 import os
 import logging
+import secrets
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 import numpy as np
 try:
@@ -9,9 +11,18 @@ except Exception:
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlmodel import Field, Session, SQLModel, create_engine, select
 from PIL import Image
+from passlib.context import CryptContext
+from pydantic import BaseModel, EmailStr
 import io
 import json
+from typing import Optional
+import base64
+from dotenv import load_dotenv
+
+# Carrega variáveis do .env local (para desenvolvimento)
+load_dotenv()
 
 # Inicializa FastAPI
 app = FastAPI(
@@ -81,6 +92,83 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.addHandler(logging.StreamHandler())
 
+# ---------- Banco de dados e autenticação ----------
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
+)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: EmailStr = Field(index=True, sa_column_kwargs={"unique": True})
+    password_hash: str
+    token: Optional[str] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Analysis(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    prediction: str
+    confidence: float
+    class_index: int
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session() -> Session:
+    return Session(engine)
+
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    return pwd_context.verify(password, hashed)
+
+
+def extract_token(request: Request) -> Optional[str]:
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return None
+
+
+def get_user_by_token(token: str) -> Optional[User]:
+    with get_session() as session:
+        statement = select(User).where(User.token == token)
+        result = session.exec(statement).first()
+        return result
+
+
+def record_analysis(user_id: Optional[int], prediction: str, confidence: float, class_index: int):
+    try:
+        with get_session() as session:
+            analysis = Analysis(
+                user_id=user_id,
+                prediction=prediction,
+                confidence=confidence,
+                class_index=class_index,
+            )
+            session.add(analysis)
+            session.commit()
+    except Exception:
+        logger.exception("Falha ao registrar análise no banco")
+
+
+# Inicializa tabelas após definição dos modelos
+create_db_and_tables()
+
 session = None
 try:
     if ort is None:
@@ -111,8 +199,95 @@ def health_check():
     }
 
 
+class RegisterPayload(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginPayload(BaseModel):
+    email: EmailStr
+    password: str
+
+
+def sanitize_user(user: User):
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at,
+        "token": user.token,
+    }
+
+
+@app.post("/auth/register")
+def register(payload: RegisterPayload):
+    with get_session() as db:
+        exists = db.exec(select(User).where(User.email == payload.email)).first()
+        if exists:
+            raise HTTPException(status_code=400, detail="Email já registrado")
+        user = User(
+            email=payload.email,
+            password_hash=hash_password(payload.password),
+            token=secrets.token_hex(32),
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return sanitize_user(user)
+
+
+@app.post("/auth/login")
+def login(payload: LoginPayload):
+    with get_session() as db:
+        user = db.exec(select(User).where(User.email == payload.email)).first()
+        if not user or not verify_password(payload.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Credenciais inválidas")
+        user.token = secrets.token_hex(32)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return sanitize_user(user)
+
+
+@app.get("/auth/me")
+def me(request: Request):
+    token = extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Token não enviado")
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    return sanitize_user(user)
+
+
+@app.get("/stats/summary")
+def stats_summary():
+    with get_session() as db:
+        analyses = db.exec(select(Analysis)).all()
+        total = len(analyses)
+        normal = sum(1 for a in analyses if a.prediction == "normal")
+        imature = sum(1 for a in analyses if a.prediction == "imature")
+        mature = sum(1 for a in analyses if a.prediction == "mature")
+
+        by_month = {}
+        for a in analyses:
+            key = a.created_at.strftime("%Y-%m")
+            by_month[key] = by_month.get(key, 0) + 1
+        by_month_list = [
+            {"month": k, "count": by_month[k]}
+            for k in sorted(by_month.keys())
+        ]
+
+        return {
+            "total": total,
+            "normal": normal,
+            "imature": imature,
+            "mature": mature,
+            "by_month": by_month_list,
+        }
+
+
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+async def predict(request: Request, file: UploadFile = File(...)):
     """
     Realiza predição de catarata em uma imagem.
     
@@ -163,6 +338,10 @@ async def predict(file: UploadFile = File(...)):
         pred_label = CLASS_NAMES.get(pred_index, "normal")
         logger.info(f"Predição: {pred_label} (confiança: {confidence:.4f})")
 
+        token = extract_token(request)
+        user = get_user_by_token(token) if token else None
+        record_analysis(user.id if user else None, pred_label, confidence, pred_index)
+
         return JSONResponse({
             "prediction": pred_label,
             "confidence": round(confidence, 4),
@@ -188,8 +367,6 @@ async def predict_base64(request: Request):
         })
     
     try:
-        import base64
-        
         body = await request.json()
         image_base64 = body.get("image", "")
         
@@ -220,6 +397,10 @@ async def predict_base64(request: Request):
 
         pred_label = CLASS_NAMES.get(pred_index, "normal")
         logger.info(f"Predição: {pred_label} (confiança: {confidence:.4f})")
+
+        token = extract_token(request)
+        user = get_user_by_token(token) if token else None
+        record_analysis(user.id if user else None, pred_label, confidence, pred_index)
         
         return JSONResponse({
             "prediction": pred_label,
