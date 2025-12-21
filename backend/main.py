@@ -315,6 +315,13 @@ async def validate_eye(request: Request):
         
         if not image_base64:
             raise ValueError("Campo 'image' (base64) é obrigatório")
+
+        # Se vier no formato data URL, remover o prefixo
+        if "," in image_base64 and image_base64.strip().lower().startswith("data:image"):
+            image_base64 = image_base64.split(",", 1)[1]
+
+        # Normaliza quebras de linha que podem quebrar o base64
+        image_base64 = image_base64.replace("\n", "").replace("\r", "")
         
         image_data = base64.b64decode(image_base64)
         img = Image.open(io.BytesIO(image_data)).convert("RGB")

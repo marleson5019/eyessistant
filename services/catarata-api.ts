@@ -190,6 +190,7 @@ export interface EyeValidationResult {
 export async function validateEyeImage(imageUri: string): Promise<EyeValidationResult> {
   try {
     const base64Image = await imageUriToBase64(imageUri);
+    console.log(`📤 Enviando para /validate-eye, base64 length=${base64Image.length}`);
 
     const response = await fetch(`${API_BASE_URL}/validate-eye`, {
       method: 'POST',
@@ -203,7 +204,8 @@ export async function validateEyeImage(imageUri: string): Promise<EyeValidationR
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const detail = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${detail || response.statusText}`);
     }
 
     return response.json();
