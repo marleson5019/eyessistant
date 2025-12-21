@@ -20,6 +20,8 @@ import json
 from typing import Optional
 import base64
 from dotenv import load_dotenv
+from urllib.parse import urlparse, urlunparse
+import socket
 
 # Carrega variáveis do .env local (para desenvolvimento)
 load_dotenv()
@@ -99,22 +101,65 @@ DATABASE_URL = os.environ.get(
     f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
 )
 
-# Tenta conectar com PostgreSQL, fallback para SQLite se falhar
+# Tenta conectar com PostgreSQL (IPv4 + ssl + pgbouncer), fallback para SQLite se falhar
 def create_engine_with_fallback():
-    connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    # SQLite connect args
+    if DATABASE_URL.startswith("sqlite"):
+        try:
+            engine = create_engine(DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+            with engine.connect() as conn:
+                conn.exec_driver_sql("SELECT 1")
+            logger.info("✅ Banco SQLite conectado")
+            return engine
+        except Exception as e:
+            logger.exception("Falha ao conectar SQLite")
+            raise
+
+    # Postgres: preparar connect_args e resolver IPv4
+    parsed = urlparse(DATABASE_URL)
+    connect_args = {"sslmode": "require"}
+    host = parsed.hostname or ""
+    port = parsed.port or 5432
+
+    ipv4 = None
     try:
-        engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
-        # Testa conexão
-        with engine.connect() as conn:
-            conn.execute("SELECT 1")
-        logger.info(f"✅ Banco de dados conectado: {DATABASE_URL[:50]}...")
-        return engine
-    except Exception as e:
-        logger.warning(f"❌ Falha ao conectar com {DATABASE_URL[:50]}...: {e}")
-        logger.info("🔄 Usando SQLite como fallback...")
-        sqlite_url = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
-        engine = create_engine(sqlite_url, echo=False, connect_args={"check_same_thread": False})
-        return engine
+        addrs = socket.getaddrinfo(host, port, family=socket.AF_INET)
+        if addrs:
+            ipv4 = addrs[0][4][0]
+            connect_args["hostaddr"] = ipv4
+    except Exception:
+        pass
+
+    def try_connect(url_str: str, label: str):
+        try:
+            eng = create_engine(url_str, echo=False, connect_args=connect_args)
+            with eng.connect() as conn:
+                conn.exec_driver_sql("SELECT 1")
+            logger.info(f"✅ Conectado a Postgres ({label}) host={host} ip={ipv4 or 'n/a'}")
+            return eng
+        except Exception as e:
+            logger.warning(f"❌ Falha Postgres ({label}) {url_str[:60]}...: {e}")
+            return None
+
+    # Tenta porta informada (normalmente 5432)
+    url_primary = DATABASE_URL
+    engine_pg = try_connect(url_primary, f"{port}")
+    if engine_pg:
+        return engine_pg
+
+    # Tenta pgbouncer (6543)
+    if port != 6543:
+        new_netloc = f"{parsed.hostname}:6543"
+        alt_url = urlunparse(parsed._replace(netloc=new_netloc))
+        engine_pg = try_connect(alt_url, "6543")
+        if engine_pg:
+            return engine_pg
+
+    # Fallback SQLite
+    logger.info("🔄 Usando SQLite como fallback...")
+    sqlite_url = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
+    engine = create_engine(sqlite_url, echo=False, connect_args={"check_same_thread": False})
+    return engine
 
 engine = create_engine_with_fallback()
 
