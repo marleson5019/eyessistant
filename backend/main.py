@@ -345,8 +345,9 @@ async def validate_eye(request: Request):
         border_mean = np.mean(borders)
         
         # Se centro é significativamente mais escuro que bordas, provavelmente é olho
-        is_eye = (center_mean < border_mean * 0.85)
-        confidence = min(abs(border_mean - center_mean) / 100.0, 1.0)
+        # Converte para bool nativo para evitar numpy.bool_ não serializável
+        is_eye = bool(center_mean < border_mean * 0.85)
+        confidence = float(min(abs(border_mean - center_mean) / 100.0, 1.0))
         
         logger.info(f"Validação de olho: is_eye={is_eye}, confidence={confidence:.2f}")
         
