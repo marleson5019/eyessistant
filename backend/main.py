@@ -343,11 +343,18 @@ async def validate_eye(request: Request):
             gray[:, -20:].flatten()
         ])
         border_mean = np.mean(borders)
-        
-        # Se centro é significativamente mais escuro que bordas, provavelmente é olho
-        # Converte para bool nativo para evitar numpy.bool_ não serializável
-        is_eye = bool(center_mean < border_mean * 0.85)
-        confidence = float(min(abs(border_mean - center_mean) / 100.0, 1.0))
+
+        # Diferença de luminância entre borda e centro
+        diff = float(border_mean - center_mean)
+        ratio = float(center_mean / (border_mean + 1e-6))
+
+        # Regras mais rígidas: exige contraste mínimo e razão centro/borda mais escura
+        contrast_ok = diff > 25.0
+        ratio_ok = ratio < 0.9
+        is_eye = bool(contrast_ok and ratio_ok)
+
+        # Confiança baseada no contraste normalizado
+        confidence = float(max(min(diff / 60.0, 1.0), 0.0))
         
         logger.info(f"Validação de olho: is_eye={is_eye}, confidence={confidence:.2f}")
         
