@@ -217,6 +217,46 @@ def health_check():
     }
 
 
+@app.get("/db/health")
+def db_health():
+    """Verifica conectividade com o banco executando SELECT 1.
+    Em ambientes com Postgres, também retorna os IPs resolvidos do host (sem expor segredos).
+    """
+    try:
+        with engine.connect() as conn:
+            # Usa driver SQL direto para independência de ORM
+            conn.exec_driver_sql("SELECT 1")
+        status = "ok"
+    except Exception as e:
+        logger.exception("Falha /db/health")
+        return JSONResponse(status_code=500, content={"status": "error", "detail": str(e)})
+
+    # Informações adicionais úteis para diagnóstico
+    info = {"status": status}
+    try:
+        from urllib.parse import urlparse
+        import socket
+        parsed = urlparse(DATABASE_URL)
+        if parsed.scheme.startswith("postgres") and parsed.hostname:
+            # Resolve IPs (IPv4/IPv6) do host
+            addrs = socket.getaddrinfo(parsed.hostname, parsed.port or 5432)
+            resolved = []
+            for a in addrs:
+                ip = a[4][0]
+                fam = "IPv6" if a[0] == socket.AF_INET6 else "IPv4"
+                resolved.append({"ip": ip, "family": fam})
+            info["resolved"] = resolved
+            info["host"] = parsed.hostname
+            info["port"] = parsed.port or 5432
+            info["driver"] = "psycopg2"
+        else:
+            info["driver"] = "sqlite"
+    except Exception:
+        pass
+
+    return info
+
+
 class RegisterPayload(BaseModel):
     email: EmailStr
     password: str
