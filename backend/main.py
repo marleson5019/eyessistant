@@ -97,8 +97,25 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
 )
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+
+# Tenta conectar com PostgreSQL, fallback para SQLite se falhar
+def create_engine_with_fallback():
+    connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    try:
+        engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+        # Testa conexão
+        with engine.connect() as conn:
+            conn.execute("SELECT 1")
+        logger.info(f"✅ Banco de dados conectado: {DATABASE_URL[:50]}...")
+        return engine
+    except Exception as e:
+        logger.warning(f"❌ Falha ao conectar com {DATABASE_URL[:50]}...: {e}")
+        logger.info("🔄 Usando SQLite como fallback...")
+        sqlite_url = f"sqlite:///{os.path.join(os.path.dirname(__file__), 'eyessistant.db')}"
+        engine = create_engine(sqlite_url, echo=False, connect_args={"check_same_thread": False})
+        return engine
+
+engine = create_engine_with_fallback()
 
 
 class User(SQLModel, table=True):
