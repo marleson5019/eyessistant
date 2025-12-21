@@ -11,7 +11,7 @@ import { Alert, Animated, Image, Platform, SafeAreaView, StyleSheet, Text, Touch
 import { useFontSize } from "../components/FontSizeContext";
 import { useIdioma } from "../components/IdiomaContext";
 import { useCores } from "../components/TemaContext";
-import { PredictionResult, getRecommendation, predictWithRetry } from "../services/catarata-api";
+import { PredictionResult, getRecommendation, predictWithRetry, validateEyeImage } from "../services/catarata-api";
 
 // Navbar igual ao início
 
@@ -541,6 +541,31 @@ export default function AnaliseScreen() {
       console.log('🌐 API URL:', process.env.EXPO_PUBLIC_API_URL || 'fallback');
       console.log('📱 Platform:', Platform.OS);
       
+      // Primeira etapa: validar se é um olho
+      console.log('👁️ Validando se a imagem é de um olho...');
+      const validation = await validateEyeImage(uri);
+      console.log('✅ Validação concluída:', validation);
+      
+      if (!validation.is_eye) {
+        setProcessing(false);
+        Alert.alert(
+          t('analise_nao_eh_olho_titulo') || 'Atenção',
+          t('analise_nao_eh_olho_desc') || 'A imagem não parece ser de um olho. Por favor, tire uma nova foto focando o olho.',
+          [
+            {
+              text: t('analise_tentar_novamente') || 'Tentar Novamente',
+              onPress: () => {
+                setConfirmedImage(null);
+                setPredictionError(null);
+              },
+            },
+          ]
+        );
+        return;
+      }
+      
+      // Segunda etapa: classificar catarata
+      console.log('🔍 Imagem validada como olho, prosseguindo com análise de catarata...');
       const result = await predictWithRetry(uri, 3);
       console.log('✅ Resultado recebido:', result);
       setPredictionResult(result);

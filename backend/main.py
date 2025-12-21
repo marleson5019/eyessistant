@@ -286,6 +286,57 @@ def stats_summary():
         }
 
 
+@app.post("/validate-eye")
+async def validate_eye(request: Request):
+    """
+    Valida se a imagem contém um olho antes de analisar catarata.
+    Usa heurísticas simples: detecta círculos (íris/pupila) ou regiões redondas.
+    """
+    try:
+        body = await request.json()
+        image_base64 = body.get("image", "")
+        
+        if not image_base64:
+            raise ValueError("Campo 'image' (base64) é obrigatório")
+        
+        image_data = base64.b64decode(image_base64)
+        img = Image.open(io.BytesIO(image_data)).convert("RGB")
+        
+        # Redimensiona para análise rápida
+        img_small = img.resize((224, 224))
+        img_array = np.array(img_small)
+        
+        # Heurística 1: Verifica se há região escura (pupila) circundada por região mais clara (íris)
+        gray = np.mean(img_array, axis=2)
+        center = gray[112-30:112+30, 112-30:112+30]
+        center_mean = np.mean(center)
+        
+        # Heurística 2: Verifica contraste entre centro e bordas
+        borders = np.concatenate([
+            gray[:20, :].flatten(),
+            gray[-20:, :].flatten(),
+            gray[:, :20].flatten(),
+            gray[:, -20:].flatten()
+        ])
+        border_mean = np.mean(borders)
+        
+        # Se centro é significativamente mais escuro que bordas, provavelmente é olho
+        is_eye = (center_mean < border_mean * 0.85)
+        confidence = min(abs(border_mean - center_mean) / 100.0, 1.0)
+        
+        logger.info(f"Validação de olho: is_eye={is_eye}, confidence={confidence:.2f}")
+        
+        return JSONResponse({
+            "is_eye": is_eye,
+            "confidence": round(confidence, 2),
+            "message": "Imagem parece ser de um olho" if is_eye else "Imagem não parece ser de um olho"
+        })
+    
+    except Exception as e:
+        logger.exception("Erro no /validate-eye")
+        raise HTTPException(status_code=400, detail=f"Erro ao validar imagem: {str(e)}")
+
+
 @app.post("/predict")
 async def predict(request: Request, file: UploadFile = File(...)):
     """

@@ -181,6 +181,38 @@ export async function fetchStats(token?: string): Promise<StatsSummary> {
   return response.json();
 }
 
+export interface EyeValidationResult {
+  is_eye: boolean;
+  confidence: number;
+  message: string;
+}
+
+export async function validateEyeImage(imageUri: string): Promise<EyeValidationResult> {
+  try {
+    const base64Image = await imageUriToBase64(imageUri);
+
+    const response = await fetch(`${API_BASE_URL}/validate-eye`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('❌ Erro na validação de olho:', error);
+    throw error;
+  }
+}
+
 export async function registerUser(email: string, password: string): Promise<AuthUser> {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
