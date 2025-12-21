@@ -288,7 +288,10 @@ function DadosScreen() {
                     height: 22,
                     borderRadius: 12,
                     backgroundColor: item.color,
-                    width: pieAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${Math.round((item.value / totalAnalises) * 100)}%`] }),
+                    width: pieAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', totalAnalises > 0 ? `${Math.round((item.value / totalAnalises) * 100)}%` : '0%'],
+                    }),
                     shadowColor: item.color,
                     shadowOpacity: 0.18,
                     shadowRadius: 8,
