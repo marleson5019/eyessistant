@@ -49,9 +49,9 @@ export default function Layout() {
   }, []);
 
   return (
-    <TemaProvider>
-      <DaltonicoProvider>
-        <ContrasteProvider>
+    <DaltonicoProvider>
+      <ContrasteProvider>
+        <TemaProvider>
           <FontSizeProvider>
             <CadastroFormProvider>
               <IdiomaProvider>
@@ -89,8 +89,8 @@ export default function Layout() {
               </IdiomaProvider>
             </CadastroFormProvider>
           </FontSizeProvider>
-        </ContrasteProvider>
-      </DaltonicoProvider>
-    </TemaProvider>
+        </TemaProvider>
+      </ContrasteProvider>
+    </DaltonicoProvider>
   );
 }

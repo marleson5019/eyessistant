@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useMemo } from 'react';
+import { useDaltonico } from './DaltonicoContext';
+import { useContraste } from './ContrasteContext';
 
 export type TemaType = 'claro' | 'escuro';
 
@@ -28,8 +30,54 @@ const CoresContext = createContext<CoresType | null>(null);
 
 export const TemaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tema, setTema] = useState<TemaType>('claro');
-  const cores = getCoresTema(tema);
-  
+  const { daltonico } = useDaltonico();
+  const { contraste } = useContraste();
+
+  const cores = useMemo(() => {
+    const base = getCoresTema(tema);
+    if (contraste) {
+      // Paleta alto contraste para nativo e web
+      return {
+        ...base,
+        background: '#000000',
+        surface: '#000000',
+        text: '#FFFFFF',
+        textSecundario: '#FFFFFF',
+        primary: '#FFD600',
+        primaryDark: '#FFC400',
+        border: '#FFFFFF',
+        shadow: '#00000099',
+        success: '#00FF8A',
+        warning: '#FFD600',
+        error: '#FF6B6B',
+        disabled: '#555',
+        cardBg: '#000000',
+      } as CoresType;
+    }
+
+    if (daltonico) {
+      // Paleta neutra para daltônico (evita depender de matiz)
+      return {
+        ...base,
+        background: '#F2F4F5',
+        surface: '#FFFFFF',
+        text: '#1C1C1E',
+        textSecundario: '#3A3A3C',
+        primary: '#4A4A4A',
+        primaryDark: '#2E2E2E',
+        border: '#B0B0B0',
+        shadow: '#00000033',
+        success: '#4A4A4A',
+        warning: '#6E6E6E',
+        error: '#8A8A8A',
+        disabled: '#C7C7C7',
+        cardBg: '#FFFFFF',
+      } as CoresType;
+    }
+
+    return base;
+  }, [tema, daltonico, contraste]);
+
   return (
     <TemaContext.Provider value={{ tema, setTema }}>
       <CoresContext.Provider value={cores}>
