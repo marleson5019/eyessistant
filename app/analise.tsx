@@ -549,9 +549,15 @@ export default function AnaliseScreen() {
       if (!validation.is_eye) {
         setProcessing(false);
         Alert.alert(
-          t('analise_nao_eh_olho_titulo') || 'Atenção',
-          t('analise_nao_eh_olho_desc') || 'A imagem não parece ser de um olho. Por favor, tire uma nova foto focando o olho.',
+          t('analise_nao_eh_olho_titulo') || 'Não foi detectado um olho',
+          t('analise_nao_eh_olho_desc') || 'Não conseguimos identificar um olho nessa imagem.\n\n📝 Dicas:\n• Veja o tutorial para melhor resultado\n• Apoie bem o celular (use as mãos ou superfície)\n• Tire uma foto nítida (sem tremida)\n• Coloque o olho no centro da câmera',
           [
+            {
+              text: t('analise_ver_tutorial') || 'Ver Tutorial',
+              onPress: () => {
+                router.push('/tutorial');
+              },
+            },
             {
               text: t('analise_tentar_novamente') || 'Tentar Novamente',
               onPress: () => {
