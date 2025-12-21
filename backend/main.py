@@ -142,14 +142,33 @@ def create_engine_with_fallback():
             return None
 
     # Tenta porta informada (normalmente 5432)
+    # Se tivermos IPv4 resolvido, reescreve netloc para usar IP diretamente
     url_primary = DATABASE_URL
+    if ipv4:
+        userinfo = ''
+        if parsed.username:
+            userinfo = parsed.username
+            if parsed.password:
+                userinfo += f":{parsed.password}"
+            userinfo += "@"
+        netloc_ip = f"{userinfo}{ipv4}:{port}"
+        url_primary = urlunparse(parsed._replace(netloc=netloc_ip))
+
     engine_pg = try_connect(url_primary, f"{port}")
     if engine_pg:
         return engine_pg
 
     # Tenta pgbouncer (6543)
     if port != 6543:
-        new_netloc = f"{parsed.hostname}:6543"
+        # Reescreve netloc para 6543, preferindo IP se disponível
+        userinfo = ''
+        if parsed.username:
+            userinfo = parsed.username
+            if parsed.password:
+                userinfo += f":{parsed.password}"
+            userinfo += "@"
+        host_for_netloc = ipv4 or parsed.hostname or ''
+        new_netloc = f"{userinfo}{host_for_netloc}:6543"
         alt_url = urlunparse(parsed._replace(netloc=new_netloc))
         engine_pg = try_connect(alt_url, "6543")
         if engine_pg:
