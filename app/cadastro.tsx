@@ -111,9 +111,21 @@ export default function Cadastro() {
     setSubmitError(null);
     try {
       setLoading(true);
-      const user = await registerUser(email, senha);
+      const user = await registerUser({
+        email,
+        password: senha,
+        name: nome,
+        phone: telefone,
+        birthdate: nascimento,
+        cpf,
+      });
       if (user.token) {
         await AsyncStorage.setItem('eyessistant_token', user.token);
+        if (user.name) await AsyncStorage.setItem('profileName', user.name);
+        if (user.email) await AsyncStorage.setItem('profileEmail', user.email);
+        if (user.cpf) await AsyncStorage.setItem('profileCPF', user.cpf);
+        if (user.phone) await AsyncStorage.setItem('profileTelefone', user.phone);
+        if (user.birthdate) await AsyncStorage.setItem('profileNascimento', user.birthdate);
       }
       setShowSuccess(true);
       setTimeout(() => {

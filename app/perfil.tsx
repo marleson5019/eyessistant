@@ -8,6 +8,7 @@ import { useFontSize } from '../components/FontSizeContext';
 import { useIdioma } from '../components/IdiomaContext';
 import Navbar from '../components/Navbar';
 import { useCores } from '../components/TemaContext';
+import { fetchProfile } from '../services/catarata-api';
 
 
 const recentAnalysis = [
@@ -64,12 +65,25 @@ const PerfilScreen = () => {
   useEffect(() => {
     (async () => {
       try {
-        const storedName = await AsyncStorage.getItem('profileName');
-        const storedPhoto = await AsyncStorage.getItem('profilePhoto');
-        const storedEmail = await AsyncStorage.getItem('profileEmail');
-        if (storedName) setProfileName(storedName);
-        if (storedPhoto) setProfilePhoto(storedPhoto);
-        if (storedEmail) setProfileEmail(storedEmail);
+        const token = await AsyncStorage.getItem('eyessistant_token');
+        if (token) {
+          try {
+            const profile = await fetchProfile(token);
+            if (profile.name) setProfileName(profile.name);
+            if (profile.email) setProfileEmail(profile.email);
+            if (profile.photo_base64) setProfilePhoto(`data:image/jpeg;base64,${profile.photo_base64}`);
+            if (profile.name) await AsyncStorage.setItem('profileName', profile.name);
+            if (profile.email) await AsyncStorage.setItem('profileEmail', profile.email);
+            if (profile.photo_base64) await AsyncStorage.setItem('profilePhoto', `data:image/jpeg;base64,${profile.photo_base64}`);
+          } catch (err) {
+            const storedName = await AsyncStorage.getItem('profileName');
+            const storedPhoto = await AsyncStorage.getItem('profilePhoto');
+            const storedEmail = await AsyncStorage.getItem('profileEmail');
+            if (storedName) setProfileName(storedName);
+            if (storedPhoto) setProfilePhoto(storedPhoto);
+            if (storedEmail) setProfileEmail(storedEmail);
+          }
+        }
       } catch (e) {
         // ignore
       }

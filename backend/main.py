@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse, urlunparse
 import socket
 import bcrypt
+from typing import Optional, List
 
 # Carrega variáveis do .env local (para desenvolvimento)
 load_dotenv()
@@ -190,6 +191,11 @@ class User(SQLModel, table=True):
     password_hash: str
     token: Optional[str] = Field(default=None, index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    name: Optional[str] = Field(default=None, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    birthdate: Optional[str] = Field(default=None, max_length=50)
+    cpf: Optional[str] = Field(default=None, max_length=50)
+    photo_base64: Optional[str] = Field(default=None)
 
 
 class Analysis(SQLModel, table=True):
@@ -206,6 +212,26 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+
+
+def ensure_user_columns():
+    """Adiciona colunas novas na tabela user se ainda não existirem (Postgres/SQLite)."""
+    statements: List[str] = [
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS name VARCHAR(255)',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS phone VARCHAR(50)',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS birthdate VARCHAR(50)',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS cpf VARCHAR(50)',
+        'ALTER TABLE "user" ADD COLUMN IF NOT EXISTS photo_base64 TEXT',
+    ]
+    try:
+        with engine.begin() as conn:
+            for stmt in statements:
+                try:
+                    conn.exec_driver_sql(stmt)
+                except Exception as e:
+                    logger.warning(f"Ignorando erro ao aplicar migration: {stmt} -> {e}")
+    except Exception:
+        logger.exception("Falha ao garantir colunas novas em user")
 
 
 def get_session() -> Session:
@@ -266,8 +292,9 @@ def record_analysis(user_id: Optional[int], prediction: str, confidence: float, 
         logger.exception("Falha ao registrar análise no banco")
 
 
-# Inicializa tabelas após definição dos modelos
+# Inicializa tabelas e garante colunas novas
 create_db_and_tables()
+ensure_user_columns()
 
 session = None
 try:
@@ -342,11 +369,26 @@ def db_health():
 class RegisterPayload(BaseModel):
     email: EmailStr
     password: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    birthdate: Optional[str] = None
+    cpf: Optional[str] = None
+    photo_base64: Optional[str] = None
 
 
 class LoginPayload(BaseModel):
     email: EmailStr
     password: str
+
+
+class UpdateProfilePayload(BaseModel):
+    email: Optional[EmailStr] = None
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    birthdate: Optional[str] = None
+    cpf: Optional[str] = None
+    photo_base64: Optional[str] = None
+    new_password: Optional[str] = None
 
 
 def sanitize_user(user: User):
@@ -355,7 +397,22 @@ def sanitize_user(user: User):
         "email": user.email,
         "created_at": user.created_at,
         "token": user.token,
+        "name": user.name,
+        "phone": user.phone,
+        "birthdate": user.birthdate,
+        "cpf": user.cpf,
+        "photo_base64": user.photo_base64,
     }
+
+
+def require_user(request: Request) -> User:
+    token = extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Token não enviado")
+    user = get_user_by_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Token inválido")
+    return user
 
 
 @app.post("/auth/register")
@@ -371,6 +428,11 @@ def register(payload: RegisterPayload):
                 email=payload.email,
                 password_hash=hash_password(payload.password),
                 token=secrets.token_hex(32),
+                name=payload.name,
+                phone=payload.phone,
+                birthdate=payload.birthdate,
+                cpf=payload.cpf,
+                photo_base64=payload.photo_base64,
             )
             db.add(user)
             db.commit()
@@ -399,13 +461,45 @@ def login(payload: LoginPayload):
 
 @app.get("/auth/me")
 def me(request: Request):
-    token = extract_token(request)
-    if not token:
-        raise HTTPException(status_code=401, detail="Token não enviado")
-    user = get_user_by_token(token)
-    if not user:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    user = require_user(request)
     return sanitize_user(user)
+
+
+@app.get("/profile")
+def get_profile(request: Request):
+    user = require_user(request)
+    return sanitize_user(user)
+
+
+@app.put("/profile")
+def update_profile(request: Request, payload: UpdateProfilePayload):
+    user = require_user(request)
+    with get_session() as db:
+        # Recarrega do banco para lock
+        db_user = db.exec(select(User).where(User.id == user.id)).first()
+        if payload.email and payload.email != db_user.email:
+            exists = db.exec(select(User).where(User.email == payload.email)).first()
+            if exists:
+                raise HTTPException(status_code=400, detail="Email já registrado por outro usuário")
+            db_user.email = payload.email
+
+        if payload.name is not None:
+            db_user.name = payload.name
+        if payload.phone is not None:
+            db_user.phone = payload.phone
+        if payload.birthdate is not None:
+            db_user.birthdate = payload.birthdate
+        if payload.cpf is not None:
+            db_user.cpf = payload.cpf
+        if payload.photo_base64 is not None:
+            db_user.photo_base64 = payload.photo_base64
+        if payload.new_password:
+            db_user.password_hash = hash_password(payload.new_password)
+
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        return sanitize_user(db_user)
 
 
 @app.get("/stats/summary")

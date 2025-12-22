@@ -36,6 +36,31 @@ export interface AuthUser {
   email: string;
   token?: string;
   created_at: string;
+  name?: string;
+  phone?: string;
+  birthdate?: string;
+  cpf?: string;
+  photo_base64?: string;
+}
+
+export interface ProfileUpdatePayload {
+  email?: string;
+  name?: string;
+  phone?: string;
+  birthdate?: string;
+  cpf?: string;
+  photo_base64?: string;
+  new_password?: string;
+}
+
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  name?: string;
+  phone?: string;
+  birthdate?: string;
+  cpf?: string;
+  photo_base64?: string;
 }
 
 export interface ApiError {
@@ -49,7 +74,7 @@ export interface ApiError {
  * Converte arquivo local (URI) para base64
  * Suporta web (FileReader) e nativo (expo-file-system)
  */
-async function imageUriToBase64(imageUri: string): Promise<string> {
+export async function imageUriToBase64(imageUri: string): Promise<string> {
   try {
     // Se for web, usar Blob/FileReader
     if (Platform.OS === 'web') {
@@ -215,14 +240,14 @@ export async function validateEyeImage(imageUri: string): Promise<EyeValidationR
   }
 }
 
-export async function registerUser(email: string, password: string): Promise<AuthUser> {
+export async function registerUser(data: RegisterPayload): Promise<AuthUser> {
   const response = await fetch(`${API_BASE_URL}/auth/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(data),
   });
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -243,6 +268,38 @@ export async function loginUser(email: string, password: string): Promise<AuthUs
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.detail || `Falha no login (HTTP ${response.status})`);
+  }
+  return response.json();
+}
+
+export async function fetchProfile(token: string): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Falha ao buscar perfil (HTTP ${response.status})`);
+  }
+  return response.json();
+}
+
+export async function updateProfile(token: string, payload: ProfileUpdatePayload): Promise<AuthUser> {
+  const response = await fetch(`${API_BASE_URL}/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Falha ao atualizar perfil (HTTP ${response.status})`);
   }
   return response.json();
 }

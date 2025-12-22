@@ -7,6 +7,7 @@ import { Alert, Animated, Image, SafeAreaView, ScrollView, StyleSheet, Text, Tex
 import { useFontSize } from '../components/FontSizeContext';
 import { useIdioma } from '../components/IdiomaContext';
 import { useCores } from '../components/TemaContext';
+import { fetchProfile, imageUriToBase64, updateProfile } from '../services/catarata-api';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -18,24 +19,42 @@ export default function EditProfileScreen() {
   const [cpf, setCpf] = useState('');
   const [password, setPassword] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.98)).current;
 
   useEffect(() => {
     (async () => {
       try {
-        const storedName = await AsyncStorage.getItem('profileName');
-        const storedPhoto = await AsyncStorage.getItem('profilePhoto');
-        const storedEmail = await AsyncStorage.getItem('profileEmail');
-        const storedCpf = await AsyncStorage.getItem('profileCPF');
-        const storedPassword = await AsyncStorage.getItem('profilePassword');
-        if (storedName) setName(storedName);
-        if (storedPhoto) setPhoto(storedPhoto);
-        if (storedEmail) setEmail(storedEmail);
-        if (storedCpf) setCpf(storedCpf);
-        if (storedPassword) setPassword(storedPassword);
+        const token = await AsyncStorage.getItem('eyessistant_token');
+        if (token) {
+          try {
+            const profile = await fetchProfile(token);
+            if (profile.name) setName(profile.name);
+            if (profile.email) setEmail(profile.email);
+            if (profile.cpf) setCpf(profile.cpf);
+            if (profile.photo_base64) setPhoto(`data:image/jpeg;base64,${profile.photo_base64}`);
+            // cache local
+            if (profile.name) await AsyncStorage.setItem('profileName', profile.name);
+            if (profile.email) await AsyncStorage.setItem('profileEmail', profile.email);
+            if (profile.cpf) await AsyncStorage.setItem('profileCPF', profile.cpf);
+            if (profile.photo_base64) await AsyncStorage.setItem('profilePhoto', `data:image/jpeg;base64,${profile.photo_base64}`);
+          } catch (err) {
+            // fallback para cache local
+            const storedName = await AsyncStorage.getItem('profileName');
+            const storedPhoto = await AsyncStorage.getItem('profilePhoto');
+            const storedEmail = await AsyncStorage.getItem('profileEmail');
+            const storedCpf = await AsyncStorage.getItem('profileCPF');
+            if (storedName) setName(storedName);
+            if (storedPhoto) setPhoto(storedPhoto);
+            if (storedEmail) setEmail(storedEmail);
+            if (storedCpf) setCpf(storedCpf);
+          }
+        }
       } catch (e) {
         // ignore
+      } finally {
+        setLoading(false);
       }
     })();
 
@@ -70,16 +89,38 @@ export default function EditProfileScreen() {
 
   const save = async () => {
     try {
-      await AsyncStorage.setItem('profileName', name || '');
-      await AsyncStorage.setItem('profileEmail', email || '');
-      await AsyncStorage.setItem('profileCPF', cpf || '');
-      // Nota: armazenando senha localmente temporariamente. Integração segura com backend será adicionada depois.
-      if (password) await AsyncStorage.setItem('profilePassword', password);
-      if (photo) await AsyncStorage.setItem('profilePhoto', photo);
+      const token = await AsyncStorage.getItem('eyessistant_token');
+      if (!token) {
+        Alert.alert(t('alert_preencha_campos'), t('Token não encontrado, faça login novamente.'));
+        return;
+      }
+      let photo_base64: string | undefined;
+      if (photo) {
+        try {
+          const base64 = await imageUriToBase64(photo);
+          photo_base64 = base64;
+        } catch (e) {
+          console.warn('Erro ao converter foto', e);
+        }
+      }
+
+      const updated = await updateProfile(token, {
+        name,
+        email,
+        cpf,
+        photo_base64,
+        new_password: password || undefined,
+      });
+
+      if (updated.name) await AsyncStorage.setItem('profileName', updated.name);
+      if (updated.email) await AsyncStorage.setItem('profileEmail', updated.email);
+      if (updated.cpf) await AsyncStorage.setItem('profileCPF', updated.cpf);
+      if (updated.photo_base64) await AsyncStorage.setItem('profilePhoto', `data:image/jpeg;base64,${updated.photo_base64}`);
+
       Alert.alert(t('editperfil_salvo_titulo'), t('editperfil_salvo_body'));
       router.back();
-    } catch (e) {
-      Alert.alert(t('editperfil_erro_titulo'), t('editperfil_erro_body'));
+    } catch (e: any) {
+      Alert.alert(t('editperfil_erro_titulo'), e?.message || t('editperfil_erro_body'));
     }
   };
 
