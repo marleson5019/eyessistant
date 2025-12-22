@@ -342,19 +342,28 @@ def sanitize_user(user: User):
 
 @app.post("/auth/register")
 def register(payload: RegisterPayload):
-    with get_session() as db:
-        exists = db.exec(select(User).where(User.email == payload.email)).first()
-        if exists:
-            raise HTTPException(status_code=400, detail="Email já registrado")
-        user = User(
-            email=payload.email,
-            password_hash=hash_password(payload.password),
-            token=secrets.token_hex(32),
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return sanitize_user(user)
+    try:
+        logger.info(f"[AUTH] Tentativa de registro: {payload.email}")
+        with get_session() as db:
+            exists = db.exec(select(User).where(User.email == payload.email)).first()
+            if exists:
+                logger.warning(f"[AUTH] Email já registrado: {payload.email}")
+                raise HTTPException(status_code=400, detail="Email já registrado")
+            user = User(
+                email=payload.email,
+                password_hash=hash_password(payload.password),
+                token=secrets.token_hex(32),
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+            logger.info(f"[AUTH] Usuário registrado com sucesso: {payload.email}")
+            return sanitize_user(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"[AUTH] Erro ao registrar usuário: {payload.email}")
+        raise HTTPException(status_code=500, detail=f"Erro ao criar usuário: {str(e)}")
 
 
 @app.post("/auth/login")
