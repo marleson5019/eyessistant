@@ -22,6 +22,7 @@ import base64
 from dotenv import load_dotenv
 from urllib.parse import urlparse, urlunparse
 import socket
+import bcrypt
 
 # Carrega variáveis do .env local (para desenvolvimento)
 load_dotenv()
@@ -213,14 +214,27 @@ def get_session() -> Session:
 
 def hash_password(password: str) -> str:
     # Bcrypt tem limite de 72 bytes - truncar se necessário
-    password_bytes = password.encode('utf-8')[:72]
-    return pwd_context.hash(password_bytes.decode('utf-8', errors='ignore'))
+    raw_bytes = password.encode('utf-8')
+    if len(raw_bytes) > 72:
+        logger.warning(f"[AUTH] Senha maior que 72 bytes, truncando. bytes={len(raw_bytes)}")
+    password_bytes = raw_bytes[:72]
+    # Hash usando bcrypt diretamente para evitar erros de backend
+    salt = bcrypt.gensalt(rounds=12)
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(password: str, hashed: str) -> bool:
     # Truncar da mesma forma para verificação
     password_bytes = password.encode('utf-8')[:72]
-    return pwd_context.verify(password_bytes.decode('utf-8', errors='ignore'), hashed)
+    try:
+        return bcrypt.checkpw(password_bytes, hashed.encode('utf-8'))
+    except Exception:
+        # Fallback para passlib caso necessário
+        try:
+            return pwd_context.verify(password_bytes.decode('utf-8', errors='ignore'), hashed)
+        except Exception:
+            return False
 
 
 def extract_token(request: Request) -> Optional[str]:
